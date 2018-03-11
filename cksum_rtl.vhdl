@@ -221,7 +221,7 @@ begin                                                                     --BEGI
 									T <= T + 1;
 									i <= i + 1;
 								elsif i = N1 then
-									out_data(32*to_integer(unsigned(part_enc))+31 downto 32*to_integer(unsigned(part_enc))); <= dC;
+									out_data(32*to_integer(unsigned(part_enc))+31 downto 32*to_integer(unsigned(part_enc))) <= dC;
 									i <= i + 1;
 									reset_enc <= '1';
 									part_enc <= part_enc + 1;
@@ -234,6 +234,7 @@ begin                                                                     --BEGI
 						out_done_check <= '1';
 						enable_enc <= '0';
 					end if;
+				end if;	
 			end if;	
 		end if;
 	end process;
