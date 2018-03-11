@@ -166,9 +166,9 @@ begin                                                                     --BEGI
 								
 								counter_gen_output <= counter_gen_output + 1;
 								temp <= inp_data(to_integer(unsigned(counter_gen_output))*8+7 downto (to_integer(unsigned(counter_gen_output)))*8);
-								output_ready = '1';
+								output_ready <= '1';
 							end if;	
-						else;
+						else
 							end_gen_output <= '1';
 							out_done_check <= '1';
 						end if;
