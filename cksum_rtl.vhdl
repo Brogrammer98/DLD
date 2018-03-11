@@ -15,18 +15,19 @@ architecture rtl of swled is
 	signal counter				: std_logic_vector(2 downto 0)  := (others => '0');
 	signal c, counter_gen_output : std_logic_vector(4 downto 0)  := (others => '0');
 	signal d  : std_logic_vector(25 downto 0)  := (others => '0');
-	signal inp_done_check, out_done_check, reset_dec, enable_dec, start_decryption, end_decryption, reset_gen_output, end_gen_output, generate_output, enable_gen_output, output_ready  : std_logic  := '0';
-	signal N0 : std_logic_vector(5 downto 0) := "000000";
-	signal counter_dec : std_logic_vector(5 downto 0) := "000000";
-	signal dP, K : std_logic_vector(31 downto 0);
+	signal inp_done_check, out_done_check, reset_dec, enable_dec, start_decryption, end_decryption, reset_enc, enable_enc, start_encryption, end_encryption, reset_gen_output, end_gen_output, generate_output, enable_gen_output, output_ready  : std_logic  := '0';
+	signal N0, N1 : std_logic_vector(5 downto 0) := "000000";
+	signal counter_dec, counter_enc : std_logic_vector(5 downto 0) := "000000";
+	signal dP, K, dC : std_logic_vector(31 downto 0);
 	signal T : std_logic_vector(3 downto 0) := "0000";
 	signal i : std_logic_vector(5 downto 0) := "000000";
-	signal part : std_logic_vector(1 downto 0)  := (others => '0');
+	signal part_dec, part_enc : std_logic_vector(1 downto 0)  := (others => '0');
 
 begin                                                                     --BEGIN_SNIPPET(registers)
 	-- Infer registers
 	process(clk_in)
 	begin
+		K <= "00000000000000000000000000000001"; -- hard-coded for now
 		if ( rising_edge(clk_in) ) then
 	
 			if ( reset_in = '1' ) then
@@ -79,22 +80,21 @@ begin                                                                     --BEGI
 				if (start_decryption = '1') then
 					enable_dec <= '1';
 					reset_dec <= '1';
-					part <= "00";
+					part_dec <= "00";
 					start_decryption <= '0';
 					end_decryption <= '0';
 				end if;
 
 				if (end_decryption = '0' and enable_dec = '1') then
-					if(part < "10") then
+					if(part_dec < "10") then
 						if (reset_dec = '1') then
 							N0 <= "000000";
 							i <= "000000";
 							counter_dec <= "000000";
-							K <= "00000000000000000000000000000001"; -- hard-coded for now
 							reset_dec <= '0';
 						else
 							if counter_dec = 0 then
-								dP <= inp_data(32*to_integer(unsigned(part))+31 downto 32*to_integer(unsigned(part)));
+								dP <= inp_data(32*to_integer(unsigned(part_dec))+31 downto 32*to_integer(unsigned(part_dec)));
 								T(3) <= K(31) xor K(27) xor K(23) xor K(19) xor K(15) xor K(11) xor K(7) xor K(3);
 								T(2) <= K(30) xor K(26) xor K(22) xor K(18) xor K(14) xor K(10) xor K(6) xor K(2);
 								T(1) <= K(29) xor K(25) xor K(21) xor K(17) xor K(13) xor K(09) xor K(5) xor K(1);
@@ -118,10 +118,10 @@ begin                                                                     --BEGI
 									T <= T + 15;
 									i <= i + 1;
 								elsif i = N0 then
-									inp_data(32*to_integer(unsigned(part))+31 downto 32*to_integer(unsigned(part))) <= dP;
+									inp_data(32*to_integer(unsigned(part_dec))+31 downto 32*to_integer(unsigned(part_dec))) <= dP;
 									i <= i + 1;
 									reset_dec <= '1';
-									part <= part + 1;
+									part_dec <= part_dec + 1;
 								end if;			
 							end if;
 						end if;
@@ -174,12 +174,67 @@ begin                                                                     --BEGI
 							end if;	
 						else
 							end_gen_output <= '1';
-							out_done_check <= '1';
+							start_encryption <= '1';
+							-- out_done_check <= '1';
 							enable_gen_output <= '0';
 						end if;
 					end if;
 				end if;
 
+				-- Encryption
+				if (start_encryption = '1') then
+					enable_enc <= '1';
+					reset_enc <= '1';
+					part_enc <= "00";
+					start_encryption <= '0';
+					end_encryption <= '0';
+				end if;
+
+				if (end_encryption = '0' and enable_enc = '1') then
+					if(part_enc < "10") then
+						if (reset_enc = '1') then
+							N1 <= "000000";
+							i <= "000000";
+							counter_enc <= "000000";
+							reset_enc <= '0';
+						else
+							if counter_enc = 0 then
+								dC <= out_data(32*to_integer(unsigned(part_enc))+31 downto 32*to_integer(unsigned(part_enc)));
+								T(3) <= K(31) xor K(27) xor K(23) xor K(19) xor K(15) xor K(11) xor K(7) xor K(3);
+								T(2) <= K(30) xor K(26) xor K(22) xor K(18) xor K(14) xor K(10) xor K(6) xor K(2);
+								T(1) <= K(29) xor K(25) xor K(21) xor K(17) xor K(13) xor K(09) xor K(5) xor K(1);
+								T(0) <= K(28) xor K(24) xor K(20) xor K(16) xor K(12) xor K(08) xor K(4) xor K(0);
+							end if;
+							if counter_enc < 32 then
+								N1 <= N1 + K(to_integer(unsigned(counter_enc)));
+								counter_enc <= counter_enc + 1;
+							else
+								if i < N1 then
+									dC(31 downto 28) <= dC(31 downto 28) xor T;
+									dC(27 downto 24) <= dC(27 downto 24) xor T;
+									dC(23 downto 20) <= dC(23 downto 20) xor T;
+									dC(19 downto 16) <= dC(19 downto 16) xor T;
+									dC(15 downto 12) <= dC(15 downto 12) xor T;
+									dC(11 downto 8) <= dC(11 downto 8) xor T;
+									dC(7 downto 4) <= dC(7 downto 4) xor T;
+									dC(3 downto 0) <= dC(3 downto 0) xor T;
+									T <= T + 1;
+									i <= i + 1;
+								elsif i = N1 then
+									out_data(32*to_integer(unsigned(part_enc))+31 downto 32*to_integer(unsigned(part_enc))) <= dC;
+									i <= i + 1;
+									reset_enc <= '1';
+									part_enc <= part_enc + 1;
+								end if;			
+							end if;
+						end if;
+					else
+					-- All data has been encrypted.
+						end_encryption <= '1';
+						out_done_check <= '1';
+						enable_enc <= '0';
+					end if;
+				end if;	
 			end if;	
 		end if;
 	end process;
