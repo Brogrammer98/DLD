@@ -13,9 +13,9 @@ architecture rtl of swled is
 	signal reg0, reg0_next, temp, output     : std_logic_vector(7 downto 0)  := (others => '0');
 	signal inp_data, out_data				: std_logic_vector(63 downto 0)  := (others => '0');
 	signal counter				: std_logic_vector(2 downto 0)  := (others => '0');
-	signal c 	: std_logic_vector(4 downto 0)  := (others => '0');
+	signal c, counter_gen_output : std_logic_vector(4 downto 0)  := (others => '0');
 	signal d  : std_logic_vector(25 downto 0)  := (others => '0');
-	signal inp_done_check, reset_dec, reset_enc, enable_dec, enable_enc  : std_logic  := '0';
+	signal inp_done_check, out_done_check, reset_dec, enable_dec, start_decryption, end_decryption, reset_gen_output, end_gen_output, generate_output, enable_gen_output, output_ready  : std_logic  := '0';
 	signal N0 : std_logic_vector(5 downto 0) := "000000";
 	signal counter_dec : std_logic_vector(5 downto 0) := "000000";
 	signal dP, K : std_logic_vector(31 downto 0);
@@ -32,43 +32,25 @@ begin                                                                     --BEGI
 			if ( reset_in = '1' ) then
 				reg0 <= (others => '0');
 			else
-				if ( d = "10110111000110110000000000" and inp_done_check = '1') then
-					if(c < "01001") then
-						temp <= inp_data(to_integer(unsigned(c))*8+15 downto (to_integer(unsigned(counter)))*8+8);
-						led_out <= temp;
+				if ( d = "10110111000110110000000000" and out_done_check = '1') then
+					if(c < "01000") then
+						led_out <= out_data(to_integer(unsigned(c))*8+7 downto (to_integer(unsigned(c)))*8);
 						d <= (others => '0');
-						-- Output preparation
-						output(4 downto 3) <= "00";
-						output(7 downto 5) <= "000";
-						output(2 downto 0) <= temp(5 downto 3);
-				
-						if (temp(7) = '1' and temp(6) = '1') then
-							if (temp(2 downto 1) = "00") then
-								output(6) <= '1';
-							else
-								output(5) <= '1';		
-							end if;
-						else
-						output(7) <= '1';		
-						end if;
 						c <= c + 1;					
 					elsif(c < "10000") then
 						led_out <= (others => '0');
 						c <= c + 1;
 					else
+						led_out <= (others => '0');
+						out_done_check <= '0';
 						inp_done_check <= '0';
 						c <= (others => '0');
-						output <= (others => '0');
 					end if;
 				end if;
-				
 				d <= d + 1;
-				--Encryption Code goes here
-				--------------
 				
 
 				if(reg0 /= reg0_next and inp_done_check = '0') then
-					--checksum <= checksum_next;
 					if (counter = "000") then
 						inp_data(7 downto 0) <= reg0_next;
 					elsif (counter = "001") then
@@ -86,21 +68,23 @@ begin                                                                     --BEGI
 					elsif (counter = "111") then
 						inp_data(63 downto 56) <= reg0_next;
 						inp_done_check <= '1';
+						start_decryption <= '1';
 						d <= (others => '0');
-						part <= "00";						
 					end if;
-
 					counter <= counter + 1;
 					reg0 <= reg0_next;
 				end if;
-
-				if(inp_done_check = '1' and part = "00") then
-					reset_dec <= '1';
-					enable_dec <= '1';
-				end if;
 				
 				-- Decryption
-				if (enable_dec = '1') then
+				if (start_decryption = '1') then
+					enable_dec <= '1';
+					reset_dec <= '1';
+					part <= "00";
+					start_decryption <= '0';
+					end_decryption <= '0';
+				end if;
+
+				if (end_decryption = '0' and enable_dec = '1') then
 					if(part < "10") then
 						if (reset_dec = '1') then
 							N0 <= "000000";
@@ -142,13 +126,61 @@ begin                                                                     --BEGI
 							end if;
 						end if;
 					else
+						-- All data has been decrypted.
+						end_decryption <= '1';
+						generate_output <= '1';
 						enable_dec <= '0';
+					end if;
+				end if;
+
+				if (generate_output = '1') then
+					enable_gen_output <= '1';
+					reset_gen_output <= '1';
+					generate_output <= '0';
+					end_gen_output <= '0';
+				end if;	
+
+				-- Generate Output Data
+				if (end_gen_output = '0' and enable_gen_output = '1') then
+					if(reset_gen_output = '1') then
 						temp <= inp_data(7 downto 0);
+						counter_gen_output <= "00000";
+						reset_gen_output <= '0';
+						output_ready <= '0';
+					else	
+						if (counter_gen_output < "01001") then
+							-- Output preparation
+							if(output_ready = '1') then
+								out_data(to_integer(unsigned(counter_gen_output))*8-1 downto (to_integer(unsigned(counter_gen_output)))*8-8) <= output;
+								output_ready <= '0';
+							else 
+								output(4 downto 3) <= "00";
+								output(7 downto 5) <= "000";
+								output(2 downto 0) <= temp(5 downto 3);
+						
+								if (temp(7) = '1' and temp(6) = '1') then
+									if (temp(2 downto 1) = "00") then
+										output(6) <= '1';
+									else
+										output(5) <= '1';		
+									end if;
+								else
+									output(7) <= '1';		
+								end if;
+								
+								temp <= inp_data(to_integer(unsigned(counter_gen_output))*8+15 downto (to_integer(unsigned(counter_gen_output)))*8+8);
+								counter_gen_output <= counter_gen_output + 1;
+								output_ready <= '1';
+							end if;	
+						else
+							end_gen_output <= '1';
+							out_done_check <= '1';
+							enable_gen_output <= '0';
+						end if;
 					end if;
 				end if;
 
 			end if;	
-
 		end if;
 	end process;
 
