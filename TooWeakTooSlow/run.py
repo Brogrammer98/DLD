@@ -1,0 +1,10 @@
+import os
+os.system("make deps")
+os.chdir("./../../")
+os.chdir("./hdlmake/apps")
+os.system("sudo ../bin/hdlmake.py -g makestuff/swled")
+os.chdir("./makestuff/swled/cksum/vhdl")
+os.system("sudo ../../../../../bin/hdlmake.py -t ../../templates/fx2all/vhdl -b atlys -p fpga")
+os.system("sudo ../../../../../../apps/flcli/lin.x64/rel/flcli -v 1d50:602b:0002 -i 1443:0007")
+os.system("sudo ../../../../../../apps/flcli/lin.x64/rel/flcli -v 1d50:602b:0002 -p J:D0D2D3D4:fpga.xsvf")
+os.system("sudo ../../../../../../apps/flcli/lin.x64/rel/flcli -v 1d50:602b:0002 -s")
